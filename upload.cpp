@@ -2,8 +2,9 @@
 #include <vector>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
-#define HASH_SIZE 262151
+#define HASH_SIZE 131101
 
 using namespace std;
 
@@ -37,6 +38,73 @@ void insert_hash(Bucket *hash_table, Artigo artigo) {
 
     cout << "Inserting " << artigo.id << " in " << index << ".\n";
     hash_table[index].artigos.push_back(artigo);
+}
+
+void print_hash() {
+    int index;
+
+    for (index = 0; index < HASH_SIZE; index++) {
+        for (auto artigo:hash_table[index].artigos) {
+            cout << artigo.id << " ";
+        }
+        cout << endl;
+    }
+}
+
+void store_hash(const char *filename) {
+    FILE *hash_file, *overflow_file;
+    int index, i, cont;
+    Artigo bloco[4];
+
+    hash_file = fopen(filename, "wb");
+    overflow_file = fopen("hash_overflow.bin", "wb");
+
+    if(!hash_file || !overflow_file) {
+        cout << "Erro ao abrir arquivo\n";
+    }
+
+    for (index = 0; index < HASH_SIZE; index++) {
+        memset(bloco, 0, 4*sizeof(Artigo));
+
+        // armazena os registros de um bloco em um vetor e escreve no arquivo principal
+        for (i = 0; i < hash_table[index].artigos.size(); i++) {
+            if(i > 2) break;
+            bloco[i] = hash_table[index].artigos[i];
+        //    cout << bloco[i].id << endl;
+        }
+
+        int status = fwrite(bloco, sizeof(Artigo), 4, hash_file);
+    //    cout << status << endl;
+
+        // armazena os registros restantes em blocos e escreve no arquivo de overflow
+        memset(bloco, 0, 4*sizeof(Artigo));
+        cont = 0;
+        for (; i < hash_table[index].artigos.size(); i++) {
+            if(cont > 2) {
+                cont = 0;
+                fwrite(bloco, sizeof(Artigo), 4, overflow_file);
+                memset(bloco, 0, 4*sizeof(Artigo));
+            }
+            bloco[cont] = hash_table[index].artigos[i];
+            cont += 1;
+        }
+
+    }
+
+    fclose(hash_file);
+    fclose(overflow_file);
+}
+
+void retrieve_hash(const char *filename) {
+    FILE *hash_file, *overflow_file;
+    int index, i, cont, status;
+    Artigo bloco[4];
+
+    hash_file = fopen(filename, "wb");
+    overflow_file = fopen("hash_overflow.bin", "wb");
+
+    status = fread(bloco, 4096, 1, hash_file);
+    cout << bloco[0].id << endl;
 }
 
 int parser(const char filename[]) {
@@ -78,5 +146,9 @@ int main() {
     hash_table = (Bucket*) malloc(sizeof(Bucket)*HASH_SIZE);
 
     status = parser("artigo.csv");
+    //print_hash();
+    store_hash("hash_file.bin");
+    retrieve_hash("hash_file.bin");
+
     cout << sizeof(Artigo);
 }
