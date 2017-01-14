@@ -9,7 +9,7 @@ Hash hash_table;
 
 void normalize(string& str) {
     str.erase(remove_if(str.begin(), str.end(), [](char c) {
-        return !isspace(c) && !isalpha(c) && c != '|' && c != '-'; }), str.end());
+        return !isprint(c); }), str.end());
 }
 
 bool is_number(const char str[]) {
@@ -41,6 +41,7 @@ int parser(const char filename[]) {
         return 0;
     }
 
+    hash_table.create_file();
     buffer = "";
     while(getline(file, aux_buffer)) {
         // "buffer" não estará vazio se a linha lida anteriormente estiver "quebrada"
@@ -94,7 +95,7 @@ int parser(const char filename[]) {
             memcpy(artigo.snippet, tokens[next_pos+1].c_str(), 99);
             artigo.snippet[99] = '\0';
 
-            hash_table.insert(artigo);
+            hash_table.store(artigo);
             count += 1;
         }
     }
@@ -106,11 +107,14 @@ int parser(const char filename[]) {
 
 int main() {
     int records = parser("artigo.csv");
-    hash_table.store("hash_file.bin");
+    cout << hash_table.SIZE * BLOCK_SIZE << endl;
 
     cout << "Registros: " << records << endl;
-//    hash_table.retrieve("hash_file.bin");
-    //Artigo artigo = hash_table.retrieve_artigo(4, "hash_file.bin");
-    //cout << artigo.id << endl;
-    //cout << artigo.titulo << endl;
+    cout << "Blocos: " << records/BLOCK_SIZE << endl;
+    hash_table.retrieve();
+
+    hash_table.find_bloco(0);
+    Artigo artigo = hash_table.retrieve_artigo(1549137);
+    cout << artigo.id << endl;
+    cout << artigo.titulo << endl;
 }

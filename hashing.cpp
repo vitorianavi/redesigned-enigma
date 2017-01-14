@@ -1,92 +1,197 @@
 #include "hashing.hpp"
 
-void Hash::insert(Artigo artigo) {
-    int index = hash_function(artigo.id);
+void Hash::create_file() {
+    char *zeros;
+    long size = this->SIZE * BLOCK_SIZE;
 
-    buckets[index].artigos.push_back(artigo);
-}
+    zeros = (char*) malloc(size);
+    memset(zeros, 0, size);
 
-void Hash::store(const char *filename) {
-    FILE *hash_file;
+    file_descriptor = fopen("hash_file.bin", "wb");
 
-    hash_file = fopen(filename, "wb");
-
-    if(!hash_file) {
-        cout << "Erro ao abrir arquivo " << filename << endl;
+    if(!file_descriptor) {
+        cout << "Erro ao abrir arquivo." << endl;
         return;
     }
 
-    for (int i = 0; i < this->SIZE; i++) {
-        buckets[i].store(hash_file);
-        buckets[i].artigos.clear();
-    }
-
-    fclose(hash_file);
+    fwrite(zeros, 1, size, file_descriptor);
+    cabecalho(file_descriptor);
+    fclose(file_descriptor);
+    file_descriptor = NULL;
 }
 
-void Hash::retrieve(const char *filename) {
-    FILE *hash_file;
+void Hash::gera_enderecos(Cabecalho *registros) {
+    Cabecalho aux;
+    long addr_offset = TAM_CABECALHO;
+    for (int i = 0; i < this->SIZE; i++) {
+        aux.bucket_index = i;
+        aux.block_addr = addr_offset ;
+        registros[i] = aux;
+        addr_offset += BLOCK_SIZE;
+    }
+}
+
+void Hash::cabecalho(FILE *file_descriptor) {
+    Cabecalho *buckets;
+    char bloco[SIZE];
+    int fanout = SIZE/BLOCK_SIZE, i;
+
+    buckets = (Cabecalho*) malloc(sizeof(Cabecalho)*this->SIZE);
+    gera_enderecos(buckets);
+
+
+    for (i = 0; i < (this->SIZE - 1); i += fanout) {
+        cout << "Inserindo bloco:" << i << endl;
+        memset(bloco, 0, sizeof(char)*SIZE);
+        memcpy(&bloco[0], &buckets[i], sizeof(Cabecalho)*fanout);
+        fwrite(bloco, 1, BLOCK_SIZE, file_descriptor);
+        cout << "bloco " << i << " inserido" << endl;
+    }
+
+    cout << "Inserindo bloco:" << i << endl;
+
+    memset(bloco, 0, sizeof(char)*SIZE);
+    memcpy(&bloco[0], &buckets[i], sizeof(Cabecalho)*(this-> SIZE - i));
+    fwrite(bloco, 1, BLOCK_SIZE, file_descriptor);
+
+    cout << "bloco " << i << " inserido" << endl;
+    
+
+}
+
+void Hash::find_bloco(int index) {
+    Cabecalho *buckets, registro;
+    Artigo artigo;
+    char bloco[SIZE];
+    int fanout = SIZE/BLOCK_SIZE, i;
+
+    buckets = (Cabecalho*) malloc(sizeof(Cabecalho)*341);
+
+    FILE *main_file = fopen("hash_file.bin", "rb");
+
+    fseek(main_file, 0, SEEK_SET);
+    fread(bloco, 1, BLOCK_SIZE, main_file);
+
+    for (i = 0; i < (this->SIZE - 1); i += fanout) {
+            memcpy(&buckets[0], &bloco[i], sizeof(Cabecalho)*fanout);
+            printf("oi\n");
+            
+            for (int j = 0; j < fanout; j++) {
+                cout << "bucket_index" << buckets[j].bucket_index;
+                if (buckets[j].bucket_index == index) {
+                    printf("entrei\n");
+                    cout << "Primeiro registro: " << registro.block_addr << endl;
+                    fseek(main_file, registro.block_addr, SEEK_SET);
+                    fread(&artigo, 1, sizeof(Artigo), main_file);
+                    cout << "Primeiro artigo id: " << artigo.id << endl;
+                    return;
+                }
+            }
+            memset(bloco, 0, sizeof(char)*SIZE);
+            memset(buckets, 0, sizeof(Cabecalho)*341);
+    }
+}
+
+
+
+void Hash::store(Artigo registro) {
+    int index = hash_function(registro.id);
+    long addr = (index * BLOCK_SIZE) + TAM_CABECALHO;
+    bool found = false;
+    Bucket bucket;
+
+    if(!file_descriptor) {
+        file_descriptor = fopen("hash_file.bin", "rb+");
+
+        if(!file_descriptor) {
+            cout << "Erro ao abrir arquivo." << endl;
+            return;
+        }
+    }
+
+    bucket.retrieve(file_descriptor, addr);
+    for (int i = 0; i < bucket.artigos.size(); i++) {
+        if(bucket.artigos[i].id == 0) {
+            bucket.artigos[i] = registro;
+            found = true;
+            break;
+        }
+    }
+
+    if(!found) {
+        bucket.store_overflow(registro, addr, file_descriptor);
+    } else {
+        bucket.overflow_list.block_addr = -1;
+        bucket.overflow_list.offset = -1;
+        bucket.store(file_descriptor, addr);
+    }
+}
+
+void Hash::retrieve() {
     int status;
     int i = 0;
-    long offset = 0L;
+    long offset = TAM_CABECALHO;
 
-    hash_file = fopen(filename, "rb");
+    if(!file_descriptor) file_descriptor = fopen("hash_file.bin", "rb+");
 
     do {
         Bucket bucket;
-        status = buckets[i].retrieve(hash_file, offset);
+        status = bucket.retrieve(file_descriptor, offset);
         offset += 4096;
         i += 1;
     } while(status);
 
-    fclose(hash_file);
+    fclose(file_descriptor);
+    file_descriptor = NULL;
 }
 
 // função para pesquisar no arquivo
-Artigo Hash::retrieve_artigo(int id, const char *filename) {
-    FILE *hash_file;
+Artigo Hash::retrieve_artigo(int id) {
     Bucket bucket;
     long int addr;
     int art_pos;
     int index = hash_function(id);
 
-    addr = index * BLOCK_SIZE;
+    addr = (index * BLOCK_SIZE) + TAM_CABECALHO;
 
-    hash_file = fopen(filename, "rb");
+    if(!file_descriptor) file_descriptor = fopen("hash_file.bin", "rb");
 
-    bucket.retrieve(hash_file, addr);
+    bucket.retrieve(file_descriptor, addr);
     art_pos = bucket.find_artigo(id);
 
     if(art_pos == -1) {
-        // procurar no arquivo de overflow
-        return retrieve_artigo_overflow(id);
+        return retrieve_artigo_overflow(id, bucket);
     }
 
     return bucket.artigos[art_pos];
 }
 
-Artigo Hash::retrieve_artigo_overflow(int id) {
+Artigo Hash::retrieve_artigo_overflow(int id, Bucket bucket) {
+
     FILE *overflow_file;
     char bloco[BLOCK_SIZE];
     Artigo registro;
 
+    memset(&registro, 0, sizeof(Artigo));
     overflow_file = fopen("hash_overflow.bin", "rb");
 
-    int status = fread(bloco, 1, BLOCK_SIZE, overflow_file);
-    if(status) {
-        for (int i = 0; i < REG_PER_BLOCK; i++) {
-            memcpy(&registro, &bloco[sizeof(Artigo)*i], sizeof(Artigo));
+    Artigo artigo;
+    OverflowAddr of_addr;
+    OverflowAddr next_addr = bucket.overflow_list;
 
-            if(registro.id == id) return registro;
+    while(next_addr.block_addr != -1) {
+        of_addr = next_addr;
+        next_addr = bucket.find_next_addr(of_addr, overflow_file, bloco);
+        memcpy(&artigo, &bloco[of_addr.offset], sizeof(Artigo));
+
+        if(artigo.id == id) {
+            registro = artigo;
+            break;
         }
-
-        status = fread(bloco, 1, BLOCK_SIZE, overflow_file);
     }
 
     fclose(overflow_file);
 
-    //não encontrou artigo
-    memset(&registro, 0, sizeof(Artigo));
     return registro;
 }
 
@@ -95,7 +200,7 @@ void Hash::print() {
 
     for (index = 0; index < this->SIZE; index++) {
         for (auto artigo:buckets[index].artigos) {
-            cout << artigo.id << " ";
+            cout << "id_artigo: " << artigo.id << " ";
         }
         cout << endl;
     }
@@ -104,57 +209,153 @@ void Hash::print() {
 int Bucket::retrieve(FILE *main_file, long offset) {
     Artigo registro;
     char bloco[BLOCK_SIZE];
+    int i;
 
     fseek(main_file, offset, SEEK_SET);
     int status = fread(bloco, 1, BLOCK_SIZE, main_file);
     if(status) {
-        for (int i = 0; i < REG_PER_BLOCK; i++) {
+        for (i = 0; i < REG_PER_BLOCK; i++) {
             memcpy(&registro, &bloco[sizeof(Artigo)*i], sizeof(Artigo));
+
             artigos.push_back(registro);
         }
+        memcpy(&overflow_list, &bloco[sizeof(Artigo)*i], sizeof(OverflowAddr));
     }
 
     return status;
 }
 
-void Bucket::store(FILE *main_file) {
+void Bucket::store(FILE *main_file, long offset) {
     char bloco[BLOCK_SIZE];
     int count = 0;
 
     memset(bloco, 0, BLOCK_SIZE);
     // armazena os registros de um bloco em um vetor e escreve no arquivo principal
     for (auto artigo:artigos) {
-        if(count == REG_PER_BLOCK)  {
-            store_overflow();
-            break;
-        }
         memcpy(&bloco[sizeof(Artigo)*count], &artigo, sizeof(Artigo));
         count += 1;
     }
+    memcpy(&bloco[sizeof(Artigo)*count], &overflow_list, sizeof(OverflowAddr));
 
+    fseek(main_file, offset, SEEK_SET);
     fwrite(bloco, BLOCK_SIZE, 1, main_file);
 }
 
-void Bucket::store_overflow() {
-    FILE *overflow_file;
+void Bucket::store_overflow(Artigo registro, long main_block_addr, FILE *main_file) {
+    FILE *overflow_file = NULL;
     char bloco[BLOCK_SIZE];
-    int count = 0;
+    long file_size;
+    int block_addr;
+    bool found_free = false;
+    OverflowAddr of_addr;
 
-    overflow_file = fopen("hash_overflow.bin", "ab");
+    overflow_file = fopen("hash_overflow.bin", "rb+");
 
-    // armazena os registros restantes em blocos e escreve no arquivo de overflow
-    memset(bloco, 0, BLOCK_SIZE);
-    for (int i = REG_PER_BLOCK; i < artigos.size(); i++) {
-        if(count >= REG_PER_BLOCK) {
-            count = 0;
-            fwrite(bloco, 1, BLOCK_SIZE, overflow_file);
-            memset(bloco, 0, BLOCK_SIZE);
-        }
-        memcpy(&bloco[sizeof(Artigo)*count], &artigos[i], sizeof(Artigo));
-        count += 1;
+    if(!overflow_file) {
+        overflow_file = fopen("hash_overflow.bin", "wb+");
     }
 
+    fseek(overflow_file, 0, SEEK_END);
+    file_size = ftell(overflow_file);
+
+    if(file_size > 0) block_addr = file_size - 4096;
+    else block_addr = 0;
+
+    if(file_size > 0) {
+        fseek(overflow_file, block_addr, SEEK_SET);
+        fread(bloco, 1, BLOCK_SIZE, overflow_file);
+
+        int passo = sizeof(Artigo)+sizeof(OverflowAddr);
+        //verifica se tem registro vazio
+        for(int i = 0; i < BLOCK_SIZE-passo; i += passo) {
+            Artigo artigo;
+            OverflowAddr null_off_addr;
+            memcpy(&artigo, &bloco[i], sizeof(Artigo));
+
+            if(artigo.id == 0) {
+                // reposiciona o ponteiro do arquivo para que o bloco seja reescrito
+                fseek(overflow_file, -BLOCK_SIZE, SEEK_CUR);
+                // escreve o novo registro na posição disponível
+                memcpy(&bloco[i], &registro, sizeof(Artigo));
+                // escreve o campo de endereco null
+                memcpy(&bloco[i+sizeof(Artigo)], &null_off_addr, sizeof(OverflowAddr));
+                //pega o endereco do registro adicionado
+                of_addr.block_addr = block_addr;
+                of_addr.offset = i;
+
+                found_free = true;
+
+                break;
+            }
+        }
+
+        if(!found_free) {
+            generate_new_overflow_block(registro, bloco);
+
+            //pega o endereco do registro adicionado
+            of_addr.block_addr = block_addr + BLOCK_SIZE;
+            of_addr.offset = 0;
+        }
+    } else {
+
+        generate_new_overflow_block(registro, bloco);
+        of_addr.block_addr = 0;
+        of_addr.offset = 0;
+    }
+
+    fwrite(bloco, 1, BLOCK_SIZE, overflow_file);
+
+    update_overflow_list(of_addr, overflow_file, main_file, main_block_addr);
+
     fclose(overflow_file);
+}
+
+void Bucket::generate_new_overflow_block(Artigo registro, char bloco[]) {
+    OverflowAddr null_off_addr;
+
+    memset(bloco, 0, BLOCK_SIZE);
+    // escreve o novo registro no início do bloco
+    memcpy(&bloco[0], &registro, sizeof(Artigo));
+    // escreve o campo de endereco null
+    memcpy(&bloco[sizeof(Artigo)], &null_off_addr, sizeof(OverflowAddr));
+}
+
+void Bucket::update_overflow_list(OverflowAddr new_reg_addr, FILE *overflow_file, FILE *main_file, long main_block_addr) {
+    char bloco[BLOCK_SIZE];
+
+    // faz o update da lista de overflow
+    if(overflow_list.block_addr == -1) {
+        overflow_list = new_reg_addr;
+        store(main_file, main_block_addr);
+    } else {
+        OverflowAddr of_addr;
+        OverflowAddr next_addr = overflow_list;
+        while(next_addr.block_addr != -1) {
+            of_addr = next_addr;
+            next_addr = find_next_addr(of_addr, overflow_file, bloco);
+        }
+
+        // reposiciona o fseek para reescrever o bloco
+        fseek(overflow_file, of_addr.block_addr, SEEK_SET);
+
+        memcpy(&bloco[of_addr.offset+sizeof(Artigo)], &new_reg_addr, sizeof(OverflowAddr));
+
+        fwrite(bloco, 1, BLOCK_SIZE, overflow_file);
+    }
+}
+
+OverflowAddr Bucket::find_next_addr(OverflowAddr actual_addr, FILE *overflow_descriptor, char bloco[]) {
+    OverflowAddr next_addr;
+
+    // posiciona o ponteiro do arquivo no endereco do bloco
+    fseek(overflow_descriptor, actual_addr.block_addr, SEEK_SET);
+    // lê o bloco
+    fread(bloco, 1, BLOCK_SIZE, overflow_descriptor);
+
+    // usa o offset para recuperar o endereço do próximo registro
+    memcpy(&next_addr, &bloco[actual_addr.offset+sizeof(Artigo)], sizeof(OverflowAddr));
+
+    return next_addr;
 }
 
 int Bucket::find_artigo(int id) {
