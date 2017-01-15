@@ -25,7 +25,7 @@ void Hash::gera_enderecos(Cabecalho *registros) {
     long addr_offset = TAM_CABECALHO;
     for (int i = 0; i < this->SIZE; i++) {
         aux.bucket_index = i;
-        aux.block_addr = addr_offset ;
+        aux.block_addr = addr_offset;
         registros[i] = aux;
         addr_offset += BLOCK_SIZE;
     }
@@ -34,28 +34,20 @@ void Hash::gera_enderecos(Cabecalho *registros) {
 void Hash::cabecalho(FILE *file_descriptor) {
     Cabecalho *buckets;
     char bloco[SIZE];
-    int fanout = SIZE/BLOCK_SIZE, i;
+    int fanout = SIZE/BLOCK_SIZE, i, j = 0;
 
     buckets = (Cabecalho*) malloc(sizeof(Cabecalho)*this->SIZE);
     gera_enderecos(buckets);
 
 
-    for (i = 0; i < (this->SIZE - 1); i += fanout) {
-        cout << "Inserindo bloco:" << i << endl;
+    for (i = 0; i < (this->SIZE); i += 341) {
+        cout << "Inserindo bloco:" << j << endl;
         memset(bloco, 0, sizeof(char)*SIZE);
-        memcpy(&bloco[0], &buckets[i], sizeof(Cabecalho)*fanout);
+        memcpy(&bloco[0], &buckets[i], sizeof(Cabecalho)*341);
         fwrite(bloco, 1, BLOCK_SIZE, file_descriptor);
-        cout << "bloco " << i << " inserido" << endl;
+        cout << "bloco " << j << " inserido" << endl;
+        j++;
     }
-
-    cout << "Inserindo bloco:" << i << endl;
-
-    memset(bloco, 0, sizeof(char)*SIZE);
-    memcpy(&bloco[0], &buckets[i], sizeof(Cabecalho)*(this-> SIZE - i));
-    fwrite(bloco, 1, BLOCK_SIZE, file_descriptor);
-
-    cout << "bloco " << i << " inserido" << endl;
-    
 
 }
 
@@ -63,35 +55,32 @@ void Hash::find_bloco(int index) {
     Cabecalho *buckets, registro;
     Artigo artigo;
     char bloco[SIZE];
-    int fanout = SIZE/BLOCK_SIZE, i;
+    int fanout = SIZE/BLOCK_SIZE, i,status;
 
     buckets = (Cabecalho*) malloc(sizeof(Cabecalho)*341);
 
     FILE *main_file = fopen("hash_file.bin", "rb");
 
-    fseek(main_file, 0, SEEK_SET);
-    fread(bloco, 1, BLOCK_SIZE, main_file);
+    status = fread(bloco, 1, SIZE, main_file);
 
-    for (i = 0; i < (this->SIZE - 1); i += fanout) {
-            memcpy(&buckets[0], &bloco[i], sizeof(Cabecalho)*fanout);
-            printf("oi\n");
-            
-            for (int j = 0; j < fanout; j++) {
-                cout << "bucket_index" << buckets[j].bucket_index;
-                if (buckets[j].bucket_index == index) {
-                    printf("entrei\n");
-                    cout << "Primeiro registro: " << registro.block_addr << endl;
-                    fseek(main_file, registro.block_addr, SEEK_SET);
-                    fread(&artigo, 1, sizeof(Artigo), main_file);
-                    cout << "Primeiro artigo id: " << artigo.id << endl;
-                    return;
+    if(status) {
+        for (i = 0; i < fanout; i++) {
+            memcpy(&registro, &bloco[sizeof(Cabecalho)*i], sizeof(Cabecalho));
+            if (registro.bucket_index == index) {
+                cout << "Endereço: "<< registro.block_addr << endl;
+                fseek(main_file, registro.block_addr, SEEK_SET);
+                status = fread(bloco, 1, BLOCK_SIZE, main_file);
+                if(status) {
+                    for (int j = 0; j < REG_PER_BLOCK; j++) {
+                        memcpy(&artigo, &bloco[sizeof(Artigo)*j], sizeof(Artigo));
+                        cout << artigo.id << endl;
+                        return;
+                    }
                 }
             }
-            memset(bloco, 0, sizeof(char)*SIZE);
-            memset(buckets, 0, sizeof(Cabecalho)*341);
+        }
     }
 }
-
 
 
 void Hash::store(Artigo registro) {
