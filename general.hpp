@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <string.h>
 
 #define BLOCK_SIZE 4096
 #define REG_PER_BLOCK 7
