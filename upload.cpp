@@ -1,11 +1,11 @@
-#include "general.hpp"
 #include "hashing.hpp"
+#include "intbtree.hpp"
 #include <stdlib.h>
 #include <stdio.h>
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/regex.hpp>
 
-Hash hash_table;
+Hash hash_table('w');
 
 void normalize(string& str) {
     str.erase(remove_if(str.begin(), str.end(), [](char c) {
@@ -41,7 +41,6 @@ int parser(const char filename[]) {
         return 0;
     }
 
-    hash_table.create_file();
     buffer = "";
     while(getline(file, aux_buffer)) {
         // "buffer" não estará vazio se a linha lida anteriormente estiver "quebrada"
@@ -105,16 +104,23 @@ int parser(const char filename[]) {
     return count;
 }
 
-int main() {
-    int records = parser("artigo.csv");
-    cout << hash_table.SIZE * BLOCK_SIZE << endl;
+void gen_primary_index(vector<HeaderAddr> addrs) {
+    IntBTree btree('w');
+    for (auto addr:addrs) {
+        btree.insert(addr.bucket_index, addr.block_addr);
+    }
+}
 
-    cout << "Registros: " << records << endl;
-    cout << "Blocos: " << records/BLOCK_SIZE << endl;
-    hash_table.retrieve();
+int main(int argc, char **argv) {
+    if(argc < 2) {
+        cout << "./upload <arquivo de entrada>" << endl;
+        exit(1);
+    }
 
-    hash_table.find_bloco(0);
-    Artigo artigo = hash_table.retrieve_artigo(1549137);
-    cout << artigo.id << endl;
-    cout << artigo.titulo << endl;
+    cout << "Creating data file...\n";
+    int records = parser(argv[1]);
+    cout << "Number of records: " << records << endl;
+
+    cout << "Building primary index...\n";
+    gen_primary_index(hash_table.addr_map);
 }

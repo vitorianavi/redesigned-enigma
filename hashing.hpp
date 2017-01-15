@@ -10,7 +10,7 @@ struct OverflowAddr {
     int offset = -1;
 };
 
-struct Cabecalho{
+struct HeaderAddr {
     long block_addr;
     int bucket_index;
 };
@@ -33,16 +33,31 @@ private:
 
 class Hash {
 public:
-    //const int SIZE = 145903; 1/7
-    //const int SIZE = 127679; 1/8
-    const int SIZE = 85121;
-    const int TAM_CABECALHO = SIZE*12;
+    int size = 170231;
+    int header_size = size*sizeof(HeaderAddr);
+    vector<HeaderAddr> addr_map;
     vector<Bucket> buckets;
     Bucket bucket_overflow;
     FILE *file_descriptor = NULL;
+    char op_mode;
 
-    Hash() {
+    Hash(char op_mode) {
+        this->op_mode = op_mode;
+        addr_map.reserve(header_size);
 
+        switch(op_mode) {
+            case 'w':
+                create_file();
+                break;
+            case 'r':
+                file_descriptor = fopen("hash_file.bin", "rb");
+                load_header();
+                break;
+            default:
+                cout << "Modo de operação inválido!" << endl;
+                exit(1);
+                break;
+        }
     }
 
     ~Hash() {
@@ -50,22 +65,22 @@ public:
     }
 
     inline int hash_function(int id) {
-        int index = id % SIZE;
+        int index = id % size;
 
         return index;
     }
 
     void create_file();
-    void gera_enderecos(Cabecalho *registros);
-    void cabecalho(FILE *file_descriptor);
-    void find_bloco(int index);
+    void gen_addresses();
+    void store_header();
+    void load_header();
     void store(Artigo artigo);
     void retrieve();
-    Artigo retrieve_artigo(int id);
+    Artigo retrieve_artigo(int id, int& count_blocks);
     void print();
 
 private:
-    Artigo retrieve_artigo_overflow(int id, Bucket bucket);
+    Artigo retrieve_artigo_overflow(int id, Bucket bucket, int& count_blocks);
 };
 
 #endif
