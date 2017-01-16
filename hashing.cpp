@@ -15,42 +15,17 @@ void Hash::create_file() {
     }
 
     fwrite(zeros, 1, size, file_descriptor);
-    store_header();
+    gen_addresses();
 }
 
 void Hash::gen_addresses() {
     HeaderAddr aux;
-    long addr_offset = header_size;
+    long addr_offset = 0;
     for (int i = 0; i < this->size; i++) {
         aux.bucket_index = i;
         aux.block_addr = addr_offset;
         addr_map[i] = aux;
         addr_offset += BLOCK_SIZE;
-    }
-}
-
-void Hash::store_header() {
-    char bloco[BLOCK_SIZE];
-    int fanout = BLOCK_SIZE/sizeof(HeaderAddr);
-    int i;
-
-    gen_addresses();
-
-    fseek(file_descriptor, 0, SEEK_SET);
-    for (i = 0; i < (this->size); i += fanout) {
-        memcpy(&bloco[0], &addr_map[i], sizeof(HeaderAddr)*fanout);
-        fwrite(bloco, 1, BLOCK_SIZE, file_descriptor);
-    }
-}
-
-void Hash::load_header() {
-    char bloco[BLOCK_SIZE];
-    int fanout = BLOCK_SIZE/sizeof(HeaderAddr);
-    int i;
-
-    for (i = 0; i < (this->size); i += fanout) {
-        fread(bloco, 1, BLOCK_SIZE, file_descriptor);
-        memcpy(&addr_map[i], &bloco[0], sizeof(HeaderAddr)*fanout);
     }
 }
 

@@ -35,7 +35,7 @@ class Hash {
 public:
     int size = 170231;
     int header_size = size*sizeof(HeaderAddr);
-    vector<HeaderAddr> addr_map;
+    HeaderAddr *addr_map;
     vector<Bucket> buckets;
     Bucket bucket_overflow;
     FILE *file_descriptor = NULL;
@@ -43,7 +43,7 @@ public:
 
     Hash(char op_mode) {
         this->op_mode = op_mode;
-        addr_map.reserve(header_size);
+        addr_map = (HeaderAddr*) malloc(sizeof(HeaderAddr)*size);
 
         switch(op_mode) {
             case 'w':
@@ -51,7 +51,7 @@ public:
                 break;
             case 'r':
                 file_descriptor = fopen("hash_file.bin", "rb");
-                load_header();
+                gen_addresses();
                 break;
             default:
                 cout << "Modo de operação inválido!" << endl;
@@ -61,6 +61,7 @@ public:
     }
 
     ~Hash() {
+        free(addr_map);
         if(file_descriptor) fclose(file_descriptor);
     }
 
@@ -72,8 +73,8 @@ public:
 
     void create_file();
     void gen_addresses();
-    void store_header();
-    void load_header();
+//    void store_header();
+//    void load_header();
     void store(Artigo artigo);
     void retrieve();
     Artigo retrieve_artigo(int id, int& count_blocks);

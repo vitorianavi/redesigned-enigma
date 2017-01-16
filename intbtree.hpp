@@ -3,7 +3,6 @@
 
 #include "general.hpp"
 
-// #define ORDER 204
 #define ORDER 204
 
 struct Node {
@@ -19,11 +18,18 @@ public:
     long root_addr;
     char op_mode;
     FILE *index_file = NULL;
-    FILE *data_file = NULL;
 
     IntBTree(char op_mode) {
         this->op_mode = op_mode;
-        root_addr = -1;
+        switch(op_mode) {
+            case 'r':
+                load_index();
+                break;
+            case 'w':
+                root_addr = -1;
+                create_index();
+                break;
+        }
     }
 
     ~IntBTree() {
@@ -31,9 +37,11 @@ public:
     }
 
     void create_index();
+    void load_index();
     void print();
     void insert(int key, long data_addr);
     long get_key_data(int key, int& count_blocks);
+    long get_file_size();
 
 private:
     long recursive_search(int key, long curr_node_addr, int& count_blocks);

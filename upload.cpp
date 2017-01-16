@@ -5,7 +5,7 @@
 #include <boost/regex.hpp>
 #include <boost/algorithm/string/regex.hpp>
 
-Hash hash_table('w');
+//Hash hash_table('w');
 
 void normalize(string& str) {
     str.erase(remove_if(str.begin(), str.end(), [](char c) {
@@ -94,7 +94,7 @@ int parser(const char filename[]) {
             memcpy(artigo.snippet, tokens[next_pos+1].c_str(), 99);
             artigo.snippet[99] = '\0';
 
-            hash_table.store(artigo);
+        //    hash_table.store(artigo);
             count += 1;
         }
     }
@@ -104,10 +104,10 @@ int parser(const char filename[]) {
     return count;
 }
 
-void gen_primary_index(vector<HeaderAddr> addrs) {
+void gen_primary_index(HeaderAddr *addrs, int n_addrs) {
     IntBTree btree('w');
-    for (auto addr:addrs) {
-        btree.insert(addr.bucket_index, addr.block_addr);
+    for (int i = 0; i < n_addrs; i++) {
+        btree.insert(addrs[i].bucket_index, addrs[i].block_addr);
     }
 }
 
@@ -117,10 +117,11 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    cout << "Creating data file...\n";
+    /*cout << "Creating data file...\n";
     int records = parser(argv[1]);
-    cout << "Number of records: " << records << endl;
+    cout << "Number of records: " << records << endl;*/
 
+    Hash hash_table('r');
     cout << "Building primary index...\n";
-    gen_primary_index(hash_table.addr_map);
+    gen_primary_index(hash_table.addr_map, hash_table.size);
 }

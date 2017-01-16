@@ -37,10 +37,12 @@ int main(int argc, char **argv) {
         cout << "Ano de publicação: " << artigo.ano << endl;
         cout << "Número de citações: " << artigo.citacoes << endl;
         cout << "Data da última atualização: " << artigo.atualizacao << endl;
-        cout << "Snippet: \"" << artigo.snippet << "\"."<< endl;
+        cout << "Snippet: \"" << artigo.snippet << "\"."<< endl << endl;
     } else {
-        cout << "Artigo não encontrado.\n";
+        cout << "Artigo não encontrado.\n\n";
     }
 
     cout << "Número de blocos lidos: " << count_blocks + 1 << endl;
+    cout << "Número de blocos totais do arquivo: " << btree.get_file_size()/BLOCK_SIZE;
+    cout << " (1 bloco de cabeçalho + " << btree.get_file_size()/BLOCK_SIZE -1 << " nós)." << endl;
 }

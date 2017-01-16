@@ -9,6 +9,8 @@ void IntBTree::print() {
         }
     }
 
+    cout << "root: " << root_addr/BLOCK_SIZE << endl;
+
     print_recursive(root_addr);
 }
 
@@ -17,6 +19,8 @@ void IntBTree::print_recursive(long curr_node_addr) {
     if(curr_node_addr == -1) return;
 
     int i;
+
+    cout << "Nó: " << curr_node_addr/BLOCK_SIZE << endl;
     Node node = get_node(curr_node_addr);
 
     cout << "qtd chaves: " << node.count_keys << endl;
@@ -25,9 +29,9 @@ void IntBTree::print_recursive(long curr_node_addr) {
         cout << node.keys[i] << "|" << node.data_pointers[i] << endl;
     }
 
-    cout << "pointer: ";
+    cout << "pointer: \n";
     for (i = 0; i <= node.count_keys; i++) {
-        cout << node.node_pointers[i] << endl;
+        cout << i << " " << node.node_pointers[i] << endl;
         print_recursive(node.node_pointers[i]);
     }
 
@@ -35,13 +39,19 @@ void IntBTree::print_recursive(long curr_node_addr) {
 }
 
 void IntBTree::create_index() {
-    if(op_mode == 'w') index_file = fopen("primary_index_file.bin", "wb+");
-    else if(op_mode == 'r') index_file = fopen("primary_index_file.bin", "rb");
-    else exit(1);
+    index_file = fopen("primary_index_file.bin", "wb+");
 
     Node node;
     node = create_empty_node();
-    this->root_addr = write_node(node);
+    node.data_pointers[0] = root_addr;
+    write_node(node);
+}
+
+void IntBTree::load_index() {
+    index_file = fopen("primary_index_file.bin", "rb");
+
+    Node node = get_node(0);
+    this->root_addr = node.data_pointers[0];
 }
 
 void IntBTree::insert(int key, long data_addr) {
@@ -59,6 +69,10 @@ void IntBTree::insert(int key, long data_addr) {
         node.node_pointers[0] = root_addr;
         node.node_pointers[1] = right_child_addr;
         this->root_addr = write_node(node);
+
+        node = get_node(0);
+        node.data_pointers[0] = this->root_addr;
+        write_node(node, 0);
     }
 }
 
@@ -76,6 +90,7 @@ bool IntBTree::recursive_insert(long curr_node_addr, int key, long data_offset, 
     Node node = get_node(curr_node_addr);
 
     if(find_key(node, key, position)) {
+        cout << key << endl;
         cout << "chave duplicada \n";
         exit(1);
     }
@@ -92,7 +107,6 @@ bool IntBTree::recursive_insert(long curr_node_addr, int key, long data_offset, 
 
         } else {
             split(node, up_key, up_data_offset, right_child_addr, curr_node_addr);
-            cout << up_key << " " << right_child_addr << endl;
             has_new_key = true;
         }
     }
@@ -121,6 +135,7 @@ void IntBTree::split(Node node, int &new_key, long &new_data_addr, long &new_key
         count += 1;
     }
     // Atualizando primeiro ponteiro do novo nó, que será o último do nó atual
+    //cout << "split atualizando primeiro ponteiro do novo\n";
     new_node.node_pointers[0] = node.node_pointers[node.count_keys+1];
 
     if(start == middle+1) {
@@ -138,11 +153,6 @@ void IntBTree::split(Node node, int &new_key, long &new_data_addr, long &new_key
     // Armazenando a chave que deve subir
     new_key = node.keys[middle];
     new_data_addr = node.data_pointers[middle];
-
-    // Esvaziando a posição do nó onde estava a chave central (pode APAGAR)
-    node.keys[middle] = -1;
-    node.data_pointers[middle] = -1;
-    node.node_pointers[middle+1] = -1;
 
     // não pode APAGAR
     node.count_keys -= 1;
@@ -182,15 +192,15 @@ Node IntBTree::create_empty_node() {
 
 // Insere uma nova chave em um nó. Deve haver espaço livre.
 void IntBTree::add_key(Node& node, int key, long data_offset, long right_child_addr, int position) {
-    int i;
-
-    node.count_keys += 1;
+    int i=0;
     // Chaves, seus respectivos ponteiros para dados e ponteiros para nós são movidos.
     for (i = node.count_keys; i > position; i--) {
         node.keys[i] = node.keys[i-1];
         node.data_pointers[i] = node.data_pointers[i-1];
         node.node_pointers[i+1] = node.node_pointers[i];
     }
+
+    node.count_keys += 1;
 
     node.keys[i] = key;
     node.data_pointers[i] = data_offset;
@@ -231,6 +241,7 @@ Node IntBTree::get_node(long node_addr) {
 long IntBTree::write_node(Node node, long addr) {
     char bloco[BLOCK_SIZE];
 
+
     memcpy(bloco, &node, sizeof(Node));
     if(addr != -1) {
         fseek(index_file, addr, SEEK_SET);
@@ -240,7 +251,14 @@ long IntBTree::write_node(Node node, long addr) {
         addr = ftell(index_file);
     }
 
+//        cout << "in " << addr << endl;
+
     fwrite(bloco, 1, BLOCK_SIZE, index_file);
 
     return addr;
+}
+
+long IntBTree::get_file_size() {
+    fseek(index_file, 0, SEEK_END);
+    return ftell(index_file);
 }
